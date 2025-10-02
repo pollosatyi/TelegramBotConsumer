@@ -34,6 +34,7 @@ namespace TelegramBotConsumer
             postgresConnectionString.Password = builder.Configuration["Password"];
             builder.Services.AddDbContext<AppDbContext>(opt =>
                 opt.UseNpgsql(postgresConnectionString.ToString()));
+            builder.Services.AddOutputCache();
 
             var app = builder.Build();
 
@@ -48,9 +49,11 @@ namespace TelegramBotConsumer
 
             app.UseAuthorization();
 
+            app.UseOutputCache();
+
             app.MapPost("api/v1/weatherFromOpenWeatherMap/post", AddCityWeather);
 
-            app.MapGet("api/v1/weatherStatistic/get{city}", GetStatisticsWeatherOfCity).;
+            app.MapGet("api/v1/weatherStatistic/get{city}", GetStatisticsWeatherOfCity).CacheOutput(builder=>builder.Expire(TimeSpan.FromSeconds(45)));
             
 
             

@@ -83,7 +83,7 @@ namespace TelegramBotPublish.Services.RabbitService
                 consumer: consumer
                 );
 
-            //await Task.Delay(Timeout.InfiniteTimeSpan);
+            
 
         }
 

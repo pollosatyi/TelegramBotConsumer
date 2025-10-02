@@ -1,10 +1,13 @@
 
+using AutoMapper;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using TelegramBotConsumer.DTOs;
 using TelegramBotPublish.Services.RabbitService;
 using WeatherTelegramBot.Data;
+using WeatherTelegramBot.DTOs;
 using WeatherTelegramBot.Profiles;
 
 namespace TelegramBotConsumer
@@ -46,6 +49,8 @@ namespace TelegramBotConsumer
             app.UseAuthorization();
 
             app.MapPost("api/v1/weatherFromOpenWeatherMap/post", AddCityWeather);
+
+            app.MapGet("api/v1/weatherStatistic/get{city}", GetStatisticsWeatherOfCity).;
             
 
             
@@ -53,11 +58,30 @@ namespace TelegramBotConsumer
             app.Run();
         }
 
+        private static async Task<IResult> GetStatisticsWeatherOfCity(IWeatherRepo weatherepo, string cityName,IMapper mapper)
+        {
+           
+            try
+            {
+                var weatherModel = await weatherepo.GetWeatherModelAsync(cityName);
+
+                if (weatherModel == null) return Results.NotFound($"Погода для города '{cityName}' не найдена");
+
+                return Results.Ok(mapper.Map<ReadStaticticModel>(weatherModel));
+
+            }
+            catch (Exception ex)
+            {
+
+                return Results.Problem($"Ошибка: {ex.Message}");
+            }
+        }
+
         private static async Task<IResult> AddCityWeather(IWeatherRepo weatherRepo, RabbitPublish rabbitPublish)
         {
             await rabbitPublish.PutMessageAsync();
 
-            return Results.Ok("Работаю");
+            return Results.Ok("Запись в базу сделана");
 
         }
     }

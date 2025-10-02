@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using TelegramBotConsumer.DTOs;
 using WeatherTelegramBot.DTOs;
 using WeatherTelegramBot.Models;
 using static WeatherTelegramBot.DTOs.CreateModelDto;
@@ -26,6 +27,10 @@ namespace WeatherTelegramBot.Profiles
                 .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
                 .ForMember(dest => dest.WindSpeed, opt => opt.MapFrom(src => src.WindSpeed));
 
+            CreateMap<WeatherModel, ReadStaticticModel>()
+                .ForMember(dest => dest.City, opt => opt.MapFrom(src => char.ToUpper(src.City[0]) + src.City.Substring(1)))
+                .ForMember(dest => dest.RequestCount, opt => opt.MapFrom(src => src.RequestCount))
+                .ForMember(dest => dest.AverageTemperature, opt => opt.MapFrom(src => src.AverageTemperature));
 
 
 

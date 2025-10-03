@@ -3,7 +3,10 @@ using AutoMapper;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 using Npgsql;
+using StackExchange.Redis;
+using System.Text.Json;
 using TelegramBotConsumer.DTOs;
 using TelegramBotPublish.Services.RabbitService;
 using WeatherTelegramBot.Data;
@@ -36,6 +39,19 @@ namespace TelegramBotConsumer
                 opt.UseNpgsql(postgresConnectionString.ToString()));
             builder.Services.AddOutputCache();
 
+            builder.Services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = builder.Configuration.GetConnectionString("Redis");
+               // options.InstanceName = "WeatherAPI";
+
+            });
+
+            builder.Services.AddScoped<IDatabase>(sp =>
+            {
+                var connection = sp.GetRequiredService<IConnectionMultiplexer>();
+                return connection.GetDatabase();
+            });
+
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
@@ -53,7 +69,7 @@ namespace TelegramBotConsumer
 
             app.MapPost("api/v1/weatherFromOpenWeatherMap/post", AddCityWeather);
 
-            app.MapGet("api/v1/weatherStatistic/get{city}", GetStatisticsWeatherOfCity).CacheOutput(builder=>builder.Expire(TimeSpan.FromSeconds(45)));
+            app.MapGet("api/v1/weatherStatistic/get{city}", GetStatisticsWeatherOfCity).WithName("GetWeatherStatistics");
             
 
             
@@ -61,16 +77,32 @@ namespace TelegramBotConsumer
             app.Run();
         }
 
-        private static async Task<IResult> GetStatisticsWeatherOfCity(IWeatherRepo weatherepo, string cityName,IMapper mapper)
+        private static async Task<IResult> GetStatisticsWeatherOfCity(IWeatherRepo weatherepo, string cityName,IMapper mapper, IDistributedCache cache)
         {
            
             try
             {
-                var weatherModel = await weatherepo.GetWeatherModelAsync(cityName);
+                var cacheKey = $"weather_{cityName.ToLower()}";
+                var cachedData = await cache.GetStringAsync(cacheKey);
+
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    var cachedResult = JsonSerializer.Deserialize<ReadStaticticModel>(cachedData);
+                    return Results.Ok(cachedResult);
+                }
+                var weatherModel = await weatherepo.GetWeatherModelAsync(cityName.ToLower());
 
                 if (weatherModel == null) return Results.NotFound($"Погода для города '{cityName}' не найдена");
 
-                return Results.Ok(mapper.Map<ReadStaticticModel>(weatherModel));
+                var result = mapper.Map<ReadStaticticModel>(weatherModel);
+
+                var cacheOptions = new DistributedCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(45));
+
+                var serializedResult=JsonSerializer.Serialize(result);
+
+                await cache.SetStringAsync(cacheKey, serializedResult, cacheOptions);
+
+                return Results.Ok(result);
 
             }
             catch (Exception ex)
